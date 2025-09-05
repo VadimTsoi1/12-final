@@ -1,0 +1,46 @@
+name: CI and Publish
+
+on:
+  push:
+    branches: [ base, ci-cd ]   
+    tags:
+      - 'v*'                    
+  pull_request:
+    branches: [ base ]          
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - name: Tidy modules
+        run: go mod tidy
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test ./...
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            docker.io/vvgo/12-final:latest
+            docker.io/vvgo/12-final:${{ github.ref_name }}
